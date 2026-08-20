@@ -1,200 +1,214 @@
-import unittest
 import threading
 
-from InventoryManagement import InventoryManagement
 
+class InventoryManagement:
 
-class InventoryQA(unittest.TestCase):
+    def __init__(self):
+        self.warehouses = {
+            "Warehouse A": {},
+            "Warehouse B": {},
+            "Warehouse C": {}
+        }
 
-    def setUp(self):
+        self.suppliers = {}
+        self.reorder_threshold = 10
+        self.lock = threading.Lock()
 
-        self.inventory = InventoryManagement()
+    # Add Product
+    def add_product(self, warehouse, product, quantity):
 
-        self.inventory.add_product(
-            "Warehouse A",
-            "Laptop",
-            50
-        )
+        if warehouse not in self.warehouses:
+            return "Invalid warehouse"
 
-        self.inventory.add_product(
-            "Warehouse B",
-            "Laptop",
-            30
-        )
+        if quantity < 0:
+            return "Invalid quantity"
 
-        self.inventory.add_product(
-            "Warehouse C",
-            "Laptop",
-            20
-        )
+        if product not in self.warehouses[warehouse]:
+            self.warehouses[warehouse][product] = 0
 
-    # 1. Stock Availability
-    def test_stock_availability(self):
+        self.warehouses[warehouse][product] += quantity
 
-        stock = self.inventory.get_stock(
-            "Warehouse A",
-            "Laptop"
-        )
+        return "Product added successfully"
 
-        self.assertEqual(stock, 50)
+    # Remove Product
+    def remove_product(self, warehouse, product, quantity):
 
-    # 2. Insufficient Inventory
-    def test_insufficient_inventory(self):
+        if warehouse not in self.warehouses:
+            return "Invalid warehouse"
 
-        result = self.inventory.fulfill_order(
-            "Laptop",
-            200
-        )
+        if product not in self.warehouses[warehouse]:
+            return "Invalid product"
 
-        self.assertEqual(
-            result,
-            "Insufficient inventory"
-        )
+        if quantity < 0:
+            return "Invalid quantity"
 
-    # 3. Warehouse Transfer
-    def test_warehouse_transfer(self):
+        if self.warehouses[warehouse][product] < quantity:
+            return "Insufficient inventory"
 
-        result = self.inventory.transfer_stock(
-            "Warehouse A",
-            "Warehouse B",
-            "Laptop",
-            10
-        )
+        self.warehouses[warehouse][product] -= quantity
 
-        self.assertEqual(
-            result,
-            "Stock transferred successfully"
-        )
+        return "Product removed successfully"
 
-        self.assertEqual(
-            self.inventory.get_stock(
-                "Warehouse A",
-                "Laptop"
-            ),
-            40
-        )
+    # Transfer Stock
+    def transfer_stock(self, source, destination, product, quantity):
 
-        self.assertEqual(
-            self.inventory.get_stock(
-                "Warehouse B",
-                "Laptop"
-            ),
-            40
-        )
+        if source not in self.warehouses:
+            return "Invalid source warehouse"
 
-    # 4. Concurrent Orders
-    def test_concurrent_orders(self):
+        if destination not in self.warehouses:
+            return "Invalid destination warehouse"
 
-        results = []
+        if product not in self.warehouses[source]:
+            return "Invalid product"
 
-        def place_order():
+        if quantity <= 0:
+            return "Invalid quantity"
 
-            result = self.inventory.fulfill_order(
-                "Laptop",
-                5
+        with self.lock:
+
+            if self.warehouses[source][product] < quantity:
+                return "Insufficient inventory"
+
+            self.warehouses[source][product] -= quantity
+
+            if product not in self.warehouses[destination]:
+                self.warehouses[destination][product] = 0
+
+            self.warehouses[destination][product] += quantity
+
+        return "Stock transferred successfully"
+
+    # Supplier Management
+    def add_supplier(self, supplier_id, supplier_name):
+
+        self.suppliers[supplier_id] = supplier_name
+
+        return "Supplier added successfully"
+
+    def remove_supplier(self, supplier_id):
+
+        if supplier_id not in self.suppliers:
+            return "Supplier not found"
+
+        del self.suppliers[supplier_id]
+
+        return "Supplier removed successfully"
+
+    # Low Stock Detection
+    def low_stock(self):
+
+        result = {}
+
+        for warehouse in self.warehouses:
+
+            for product, quantity in self.warehouses[warehouse].items():
+
+                if quantity <= self.reorder_threshold:
+
+                    if warehouse not in result:
+                        result[warehouse] = []
+
+                    result[warehouse].append(product)
+
+        return result
+
+    # Reorder
+    def reorder(self, warehouse, product, quantity):
+
+        if warehouse not in self.warehouses:
+            return "Invalid warehouse"
+
+        if quantity <= 0:
+            return "Invalid quantity"
+
+        if product not in self.warehouses[warehouse]:
+            self.warehouses[warehouse][product] = 0
+
+        self.warehouses[warehouse][product] += quantity
+
+        return "Stock reordered successfully"
+
+    # Automatic Warehouse Selection
+    def select_warehouse(self, product, quantity):
+
+        for warehouse in self.warehouses:
+
+            stock = self.warehouses[warehouse].get(
+                product, 0
             )
 
-            results.append(result)
+            if stock >= quantity:
+                return warehouse
 
-        threads = []
+        return None
 
-        for i in range(5):
+    # Fulfill Order
+    def fulfill_order(self, product, quantity):
 
-            thread = threading.Thread(
-                target=place_order
+        if quantity <= 0:
+            return "Invalid quantity"
+
+        with self.lock:
+
+            warehouse = self.select_warehouse(
+                product,
+                quantity
             )
 
-            threads.append(thread)
+            if warehouse is None:
+                return "Insufficient inventory"
 
-        for thread in threads:
-            thread.start()
+            self.warehouses[warehouse][product] -= quantity
 
-        for thread in threads:
-            thread.join()
+            return "Order fulfilled from " + warehouse
 
-        self.assertEqual(
-            len(results),
-            5
-        )
+    # Get Stock
+    def get_stock(self, warehouse, product):
 
-    # 5. Reorder Threshold
-    def test_reorder_threshold(self):
+        if warehouse not in self.warehouses:
+            return -1
 
-        self.inventory.remove_product(
-            "Warehouse A",
-            "Laptop",
-            45
-        )
-
-        low_stock = self.inventory.low_stock()
-
-        self.assertIn(
-            "Warehouse A",
-            low_stock
-        )
-
-        self.assertIn(
-            "Laptop",
-            low_stock["Warehouse A"]
-        )
-
-    # 6. Invalid Product
-    def test_invalid_product(self):
-
-        result = self.inventory.remove_product(
-            "Warehouse A",
-            "Mobile",
-            5
-        )
-
-        self.assertEqual(
-            result,
-            "Invalid product"
-        )
-
-    # 7. Negative Inventory
-    def test_negative_inventory(self):
-
-        result = self.inventory.remove_product(
-            "Warehouse A",
-            "Laptop",
-            100
-        )
-
-        self.assertEqual(
-            result,
-            "Insufficient inventory"
-        )
-
-        stock = self.inventory.get_stock(
-            "Warehouse A",
-            "Laptop"
-        )
-
-        self.assertGreaterEqual(
-            stock,
-            0
-        )
-
-    # 8. Multiple Warehouses
-    def test_multiple_warehouses(self):
-
-        warehouse = self.inventory.select_warehouse(
-            "Laptop",
-            25
-        )
-
-        self.assertIsNotNone(warehouse)
-
-        self.assertIn(
-            warehouse,
-            [
-                "Warehouse A",
-                "Warehouse B",
-                "Warehouse C"
-            ]
-        )
+        return self.warehouses[warehouse].get(product, 0)
 
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+
+    inventory = InventoryManagement()
+
+    print(inventory.add_product(
+        "Warehouse A",
+        "Laptop",
+        50
+    ))
+
+    print(inventory.add_product(
+        "Warehouse B",
+        "Laptop",
+        30
+    ))
+
+    print(inventory.add_product(
+        "Warehouse C",
+        "Laptop",
+        20
+    ))
+
+    print(inventory.add_supplier(
+        "S001",
+        "ABC Suppliers"
+    ))
+
+    print(inventory.transfer_stock(
+        "Warehouse A",
+        "Warehouse B",
+        "Laptop",
+        10
+    ))
+
+    print(inventory.fulfill_order(
+        "Laptop",
+        25
+    ))
+
+    print("Low Stock:")
+    print(inventory.low_stock())
