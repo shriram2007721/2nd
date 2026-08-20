@@ -4,7 +4,6 @@ import threading
 class InventoryManagement:
 
     def __init__(self):
-
         self.warehouses = {
             "Warehouse A": {},
             "Warehouse B": {},
@@ -12,9 +11,7 @@ class InventoryManagement:
         }
 
         self.suppliers = {}
-
         self.reorder_threshold = 10
-
         self.lock = threading.Lock()
 
     # Add Product
@@ -67,10 +64,10 @@ class InventoryManagement:
         if quantity <= 0:
             return "Invalid quantity"
 
-        if self.warehouses[source][product] < quantity:
-            return "Insufficient inventory"
-
         with self.lock:
+
+            if self.warehouses[source][product] < quantity:
+                return "Insufficient inventory"
 
             self.warehouses[source][product] -= quantity
 
@@ -131,16 +128,16 @@ class InventoryManagement:
 
         return "Stock reordered successfully"
 
-    # Warehouse Selection
+    # Automatic Warehouse Selection
     def select_warehouse(self, product, quantity):
 
         for warehouse in self.warehouses:
 
-            available = self.warehouses[warehouse].get(
+            stock = self.warehouses[warehouse].get(
                 product, 0
             )
 
-            if available >= quantity:
+            if stock >= quantity:
                 return warehouse
 
         return None
@@ -151,19 +148,19 @@ class InventoryManagement:
         if quantity <= 0:
             return "Invalid quantity"
 
-        warehouse = self.select_warehouse(
-            product,
-            quantity
-        )
-
-        if warehouse is None:
-            return "Insufficient inventory"
-
         with self.lock:
+
+            warehouse = self.select_warehouse(
+                product,
+                quantity
+            )
+
+            if warehouse is None:
+                return "Insufficient inventory"
 
             self.warehouses[warehouse][product] -= quantity
 
-        return "Order fulfilled from " + warehouse
+            return "Order fulfilled from " + warehouse
 
     # Get Stock
     def get_stock(self, warehouse, product):
@@ -171,10 +168,7 @@ class InventoryManagement:
         if warehouse not in self.warehouses:
             return -1
 
-        return self.warehouses[warehouse].get(
-            product,
-            0
-        )
+        return self.warehouses[warehouse].get(product, 0)
 
 
 if __name__ == "__main__":
@@ -199,12 +193,6 @@ if __name__ == "__main__":
         20
     ))
 
-    print(inventory.add_product(
-        "Warehouse A",
-        "Mouse",
-        15
-    ))
-
     print(inventory.add_supplier(
         "S001",
         "ABC Suppliers"
@@ -223,11 +211,4 @@ if __name__ == "__main__":
     ))
 
     print("Low Stock:")
-
     print(inventory.low_stock())
-
-    print("Warehouse A Laptop:",
-          inventory.get_stock(
-              "Warehouse A",
-              "Laptop"
-          ))
